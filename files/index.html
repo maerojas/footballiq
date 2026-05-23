@@ -210,6 +210,7 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
     <div class="auth-logo">⚽ Football<em>IQ</em></div>
     <div class="auth-sub" id="authSubtitle">Iniciá sesión para acceder al dashboard</div>
     <div id="authError" class="auth-error hidden"></div>
+    <div id="authSuccess" class="auth-error hidden" style="background:rgba(29,185,84,0.12);border-color:rgba(29,185,84,0.3);color:#86efac"></div>
     <form id="authForm">
       <div class="field">
         <label>Email</label>
@@ -223,7 +224,7 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
     </form>
     <div class="auth-toggle">
       <span id="authToggleText">¿No tenés cuenta?</span>
-      <a id="authToggleLink">Registrate</a>
+      <a href="#" id="authToggleLink">Registrarse</a>
     </div>
   </div>
 </div>
@@ -342,14 +343,14 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ═══════════════════════════════════════════════
-//  CONFIG — reemplazá con tus credenciales reales
+//  CONFIG — credenciales hardcodeadas (Vercel no inyecta env en HTML estático)
 // ═══════════════════════════════════════════════
-const CONFIG = {
-  SUPABASE_URL: 'TU_SUPABASE_URL',
-  SUPABASE_ANON_KEY: 'TU_ANON_KEY',
-  FD_API_KEY: 'TU_NUEVA_API_KEY',
-  FD_API: 'https://corsproxy.io/?https://api.football-data.org/v4/'
-};
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_ANON_KEY';
+const FD_API_KEY = 'fcb3563ca9194ecbb4708f4e5b3d0f6a';
+const FD_API = 'https://corsproxy.io/?https://api.football-data.org/v4/';
+
+const CONFIG = { SUPABASE_URL, SUPABASE_ANON_KEY, FD_API_KEY, FD_API };
 
 const LEAGUES = {
   PL:  { name: 'Premier League', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', id: 2021, premium: false },
@@ -375,7 +376,8 @@ const STATE = {
   predictionCache: {}
 };
 
-const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ═══════════════════════════════════════════════
 //  AUTH
@@ -384,70 +386,132 @@ const authScreen = document.getElementById('authScreen');
 const appShell = document.getElementById('appShell');
 const authForm = document.getElementById('authForm');
 const authError = document.getElementById('authError');
+const authSuccess = document.getElementById('authSuccess');
 const authSubtitle = document.getElementById('authSubtitle');
 const authSubmit = document.getElementById('authSubmit');
 const authToggleText = document.getElementById('authToggleText');
 const authToggleLink = document.getElementById('authToggleLink');
 
+function hideAuthMessages() {
+  authError.classList.add('hidden');
+  authSuccess.classList.add('hidden');
+}
+
 function showAuthError(msg) {
+  authSuccess.classList.add('hidden');
   authError.textContent = msg;
   authError.classList.remove('hidden');
 }
 
+function showAuthSuccess(msg) {
+  authError.classList.add('hidden');
+  authSuccess.textContent = msg;
+  authSuccess.classList.remove('hidden');
+}
+
+function validateSupabaseConfig() {
+  if (!SUPABASE_URL || SUPABASE_URL.includes('TU_SUPABASE') || !SUPABASE_URL.startsWith('https://')) {
+    showAuthError('Configurá SUPABASE_URL en index.html con tu URL de Supabase (https://xxx.supabase.co)');
+    return false;
+  }
+  if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('TU_ANON')) {
+    showAuthError('Configurá SUPABASE_ANON_KEY en index.html con tu anon key de Supabase');
+    return false;
+  }
+  return true;
+}
+
 function setAuthMode(mode) {
   STATE.authMode = mode;
-  authError.classList.add('hidden');
+  hideAuthMessages();
   if (mode === 'login') {
     authSubtitle.textContent = 'Iniciá sesión para acceder al dashboard';
     authSubmit.textContent = 'Iniciar sesión';
     authToggleText.textContent = '¿No tenés cuenta?';
-    authToggleLink.textContent = 'Registrate';
+    authToggleLink.textContent = 'Registrarse';
   } else {
     authSubtitle.textContent = 'Creá tu cuenta gratis';
-    authSubmit.textContent = 'Crear cuenta';
+    authSubmit.textContent = 'Registrarse';
     authToggleText.textContent = '¿Ya tenés cuenta?';
-    authToggleLink.textContent = 'Iniciá sesión';
+    authToggleLink.textContent = 'Iniciar sesión';
   }
 }
 
-authToggleLink.onclick = () => setAuthMode(STATE.authMode === 'login' ? 'register' : 'login');
-
-authForm.onsubmit = async (e) => {
+authToggleLink.addEventListener('click', (e) => {
   e.preventDefault();
+  setAuthMode(STATE.authMode === 'login' ? 'register' : 'login');
+});
+
+async function loginUser(email, password) {
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function registerUser(email, password) {
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname }
+  });
+  if (error) throw error;
+
+  if (data.user) {
+    const { error: profileError } = await sb.from('profiles').upsert({
+      id: data.user.id,
+      favorite_leagues: ['PL'],
+      is_premium: false
+    });
+    if (profileError) console.warn('No se pudo crear el perfil:', profileError.message);
+  }
+
+  return data;
+}
+
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideAuthMessages();
+  if (!validateSupabaseConfig()) return;
+
   authSubmit.disabled = true;
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
 
+  if (!email || password.length < 6) {
+    showAuthError('Ingresá un email válido y contraseña de al menos 6 caracteres.');
+    authSubmit.disabled = false;
+    return;
+  }
+
   try {
     if (STATE.authMode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      await loginUser(email, password);
     } else {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      if (data.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          favorite_leagues: ['PL'],
-          is_premium: false
-        });
+      const data = await registerUser(email, password);
+      if (data.session) {
+        showAuthSuccess('¡Cuenta creada! Entrando al dashboard...');
+      } else {
+        showAuthSuccess('Cuenta creada. Revisá tu email para confirmar e iniciá sesión.');
+        setAuthMode('login');
       }
-      alert('Cuenta creada. Revisá tu email si la confirmación está activada.');
     }
   } catch (err) {
-    showAuthError(err.message);
+    showAuthError(err.message || 'Error de autenticación');
   }
+
   authSubmit.disabled = false;
-};
+});
 
 document.getElementById('logoutBtn').onclick = async () => {
-  await supabase.auth.signOut();
-  showAuth();
+  await sb.auth.signOut();
 };
 
-supabase.auth.onAuthStateChange((_event, session) => {
-  if (session?.user) initApp(session.user);
-  else showAuth();
+sb.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    initApp(session.user);
+  } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
+    showAuth();
+  }
 });
 
 async function showAuth() {
@@ -473,7 +537,7 @@ async function initApp(user) {
 }
 
 async function loadProfile() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('profiles')
     .select('favorite_leagues, is_premium')
     .eq('id', STATE.user.id)
@@ -485,7 +549,7 @@ async function loadProfile() {
       is_premium: !!data.is_premium
     };
   } else if (!error || error.code === 'PGRST116') {
-    await supabase.from('profiles').upsert({
+    await sb.from('profiles').upsert({
       id: STATE.user.id,
       favorite_leagues: ['PL'],
       is_premium: false
@@ -511,7 +575,7 @@ function updatePremiumUI() {
 }
 
 document.getElementById('upgradeBtn').onclick = async () => {
-  await supabase.from('profiles').update({ is_premium: true }).eq('id', STATE.user.id);
+  await sb.from('profiles').update({ is_premium: true }).eq('id', STATE.user.id);
   STATE.profile.is_premium = true;
   updatePremiumUI();
   alert('¡Premium activado! (demo — en producción usar Stripe)');
@@ -889,7 +953,7 @@ function renderProfileFavorites() {
 document.getElementById('saveFavBtn').onclick = async () => {
   const checked = [...document.querySelectorAll('#favLeaguesGrid input:checked')].map(i => i.value);
   if (!checked.length) { alert('Elegí al menos una liga'); return; }
-  const { error } = await supabase.from('profiles').update({ favorite_leagues: checked }).eq('id', STATE.user.id);
+  const { error } = await sb.from('profiles').update({ favorite_leagues: checked }).eq('id', STATE.user.id);
   const msg = document.getElementById('favSaveMsg');
   if (error) { msg.style.color = 'var(--red)'; msg.textContent = error.message; }
   else {
@@ -904,11 +968,8 @@ document.getElementById('saveFavBtn').onclick = async () => {
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
-(async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) initApp(session.user);
-  else showAuth();
-})();
+setAuthMode('login');
+validateSupabaseConfig();
 </script>
 </body>
 </html>
