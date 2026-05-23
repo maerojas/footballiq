@@ -583,33 +583,12 @@ document.getElementById('upgradeBtn').onclick = async () => {
 //  FOOTBALL DATA
 // ═══════════════════════════════════════════════
 async function fetchFD(endpoint) {
-  const apiUrl = `https://api.football-data.org/v4/${endpoint}`;
-  const proxies = [
-    `https://corsproxy.io/?${apiUrl}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`,
-    `https://thingproxy.freeboard.io/fetch/${apiUrl}`
-  ];
-  const headers = { 'X-Auth-Token': 'fcb3563ca9194ecbb4708f4e5b3d0f6a' };
-  const failures = [];
-
-  for (const url of proxies) {
-    try {
-      const res = await fetch(url, { headers });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        failures.push(data.message || data.detail || `HTTP ${res.status}`);
-        continue;
-      }
-      return data;
-    } catch (err) {
-      failures.push(err.message || 'Error de red');
-    }
-  }
-
-  throw new Error(
-    'No se pudieron cargar los datos de fútbol. Los 3 proxies fallaron (corsproxy.io, allorigins.win, thingproxy). ' +
-    'Verificá tu conexión e intentá de nuevo en unos minutos.'
-  );
+  const target = `https://api.football-data.org/v4/${endpoint}`;
+  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
+  const res = await fetch(url, { headers: { 'X-Auth-Token': 'fcb3563ca9194ecbb4708f4e5b3d0f6a' } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
 }
 
 async function loadData() {
