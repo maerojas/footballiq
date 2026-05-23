@@ -583,9 +583,8 @@ document.getElementById('upgradeBtn').onclick = async () => {
 //  FOOTBALL DATA
 // ═══════════════════════════════════════════════
 async function fetchFD(endpoint) {
-  const target = `https://api.football-data.org/v4/${endpoint}`;
-  const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
-  const res = await fetch(url, { headers: { 'X-Auth-Token': 'fcb3563ca9194ecbb4708f4e5b3d0f6a' } });
+  const url = `/api/fd?endpoint=${encodeURIComponent(endpoint)}`;
+  const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
   return data;
