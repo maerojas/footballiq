@@ -375,6 +375,8 @@ const LEAGUES = {
   FL1: { name: 'Ligue 1',         flag: '🇫🇷', id: 2015 },
 };
 
+const FD_API = 'https://corsproxy.io/?https://api.football-data.org/v4/';
+
 // ═══════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════
@@ -426,7 +428,7 @@ function parseApiError(body, status) {
 async function fetchFD(endpoint) {
   let res;
   try {
-    res = await fetch(`https://corsproxy.io/?https://api.football-data.org/v4/${endpoint}`, {
+    res = await fetch(`${FD_API}${endpoint}`, {
       headers: { 'X-Auth-Token': STATE.apiKey }
     });
   } catch (_) {
@@ -700,7 +702,7 @@ async function renderMatchDetail(match) {
 }
 
 // ═══════════════════════════════════════════════
-//  PROBABILIDADES (modelo Python local)
+//  PROBABILIDADES (modelo estadístico local)
 // ═══════════════════════════════════════════════
 function renderProbCard(probs, match, showTitle = true) {
   const title = showTitle ? `<div class="card-title">🎯 Probabilidades <span class="tag">ML</span></div>` : '';
