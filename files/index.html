@@ -347,10 +347,8 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
 // ═══════════════════════════════════════════════
 const SUPABASE_URL = 'https://chtpxgfdgdzqyceqtsfb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNodHB4Z2ZkZ2R6cXljZXF0c2ZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDQ0OTQsImV4cCI6MjA5NTEyMDQ5NH0.Az547AgQtYPPuvdNPkgVSk8_m5QkywzIn3zwmnATqUA';
-const FD_API_KEY = 'fcb3563ca9194ecbb4708f4e5b3d0f6a';
-const FD_API = 'https://corsproxy.io/?https://api.football-data.org/v4/';
 
-const CONFIG = { SUPABASE_URL, SUPABASE_ANON_KEY, FD_API_KEY, FD_API };
+const CONFIG = { SUPABASE_URL, SUPABASE_ANON_KEY };
 
 const LEAGUES = {
   PL:  { name: 'Premier League', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', id: 2021, premium: false },
@@ -585,8 +583,8 @@ document.getElementById('upgradeBtn').onclick = async () => {
 //  FOOTBALL DATA
 // ═══════════════════════════════════════════════
 async function fetchFD(endpoint) {
-  const res = await fetch(`${CONFIG.FD_API}${endpoint}`, {
-    headers: { 'X-Auth-Token': CONFIG.FD_API_KEY }
+  const res = await fetch(`https://corsproxy.io/?https://api.football-data.org/v4/${endpoint}`, {
+    headers: { 'X-Auth-Token': 'fcb3563ca9194ecbb4708f4e5b3d0f6a' }
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.detail || `HTTP ${res.status}`);
