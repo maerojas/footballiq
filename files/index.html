@@ -626,7 +626,7 @@ async function loadData() {
       fetchFD(`competitions/${league.id}/matches?status=LIVE,IN_PLAY,PAUSED,SCHEDULED,TIMED,FINISHED&limit=100`),
       fetchFD(`competitions/${league.id}/standings`)
     ]);
-    STATE.matches = (matchData.matches || []).sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+    STATE.matches = sortMatches(matchData.matches || []);
     const table = standData.standings?.find(s => s.type === 'TOTAL');
     STATE.standings = table?.table || [];
     STATE.predictionCache = {};
@@ -718,6 +718,23 @@ function isScheduled(s) { return ['SCHEDULED','TIMED','POSTPONED'].includes(s); 
 function isSameDay(d) {
   const dt = new Date(d), now = new Date();
   return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth() && dt.getDate() === now.getDate();
+}
+function matchBucket(m) {
+  if (isLive(m.status)) return 0;
+  if (isFinished(m.status)) return 3;
+  if (isSameDay(m.utcDate)) return 1;
+  return 2;
+}
+function sortMatches(matches) {
+  return [...matches].sort((a, b) => {
+    const bucketA = matchBucket(a);
+    const bucketB = matchBucket(b);
+    if (bucketA !== bucketB) return bucketA - bucketB;
+    const dateA = new Date(a.utcDate).getTime();
+    const dateB = new Date(b.utcDate).getTime();
+    if (bucketA === 3) return dateB - dateA;
+    return dateA - dateB;
+  });
 }
 function filterMatches(list = STATE.matches) {
   return list.filter(m => {
