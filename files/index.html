@@ -194,11 +194,37 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
 .error-box { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; padding: 14px; border-radius: var(--radius-sm); font-size: 13px; }
 .empty { text-align: center; padding: 32px; color: var(--text3); font-size: 14px; }
 
+.squad-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.squad-col-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 12px; text-align: center; }
+.squad-group { margin-bottom: 14px; }
+.squad-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; padding: 4px 8px; border-radius: 6px; display: inline-block; }
+.squad-group-label.pos-gk { background: rgba(245,158,11,0.18); color: var(--amber); }
+.squad-group-label.pos-def { background: rgba(59,130,246,0.18); color: var(--blue); }
+.squad-group-label.pos-mid { background: rgba(29,185,84,0.18); color: var(--green); }
+.squad-group-label.pos-fwd { background: rgba(239,68,68,0.18); color: var(--red); }
+.squad-player {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm); margin-bottom: 4px;
+  background: var(--surface2); border: 1px solid var(--border); font-size: 12px;
+}
+.squad-player.pos-gk { border-left: 3px solid var(--amber); }
+.squad-player.pos-def { border-left: 3px solid var(--blue); }
+.squad-player.pos-mid { border-left: 3px solid var(--green); }
+.squad-player.pos-fwd { border-left: 3px solid var(--red); }
+.squad-player-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.squad-player-meta { display: flex; align-items: center; gap: 6px; color: var(--text2); flex-shrink: 0; }
+.squad-pos-badge { font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 4px; }
+.squad-pos-badge.pos-gk { background: rgba(245,158,11,0.2); color: var(--amber); }
+.squad-pos-badge.pos-def { background: rgba(59,130,246,0.2); color: var(--blue); }
+.squad-pos-badge.pos-mid { background: rgba(29,185,84,0.2); color: var(--green); }
+.squad-pos-badge.pos-fwd { background: rgba(239,68,68,0.2); color: var(--red); }
+
 @media (max-width: 900px) {
   .sidebar { display: none; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
   .fav-grid { grid-template-columns: 1fr; }
+  .squad-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -371,7 +397,8 @@ const STATE = {
   standings: [],
   selectedMatch: null,
   authMode: 'login',
-  predictionCache: {}
+  predictionCache: {},
+  squadCache: {}
 };
 
 const { createClient } = supabase;
@@ -603,6 +630,7 @@ async function loadData() {
     const table = standData.standings?.find(s => s.type === 'TOTAL');
     STATE.standings = table?.table || [];
     STATE.predictionCache = {};
+    STATE.squadCache = {};
     renderCurrentPage();
   } catch (e) {
     console.error(e);
@@ -789,6 +817,137 @@ function analysisHTML(probs) {
   </div>`;
 }
 
+const SQUAD_GROUPS = [
+  { key: 'GK', label: 'Arqueros' },
+  { key: 'DEF', label: 'Defensas' },
+  { key: 'MID', label: 'Mediocampistas' },
+  { key: 'FWD', label: 'Delanteros' }
+];
+
+const NAT_FLAGS = {
+  Argentina: '🇦🇷', Australia: '🇦🇺', Austria: '🇦🇹', Belgium: '🇧🇪', Brazil: '🇧🇷',
+  Cameroon: '🇨🇲', Canada: '🇨🇦', Chile: '🇨🇱', Colombia: '🇨🇴', 'Costa Rica': '🇨🇷',
+  Croatia: '🇭🇷', 'Côte d\'Ivoire': '🇨🇮', 'Ivory Coast': '🇨🇮', Denmark: '🇩🇰',
+  Ecuador: '🇪🇨', Egypt: '🇪🇬', England: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', France: '🇫🇷', Germany: '🇩🇪',
+  Ghana: '🇬🇭', Greece: '🇬🇷', Italy: '🇮🇹', Japan: '🇯🇵', Mexico: '🇲🇽',
+  Morocco: '🇲🇦', Netherlands: '🇳🇱', Nigeria: '🇳🇬', Norway: '🇳🇴', Poland: '🇵🇱',
+  Portugal: '🇵🇹', 'Republic of Ireland': '🇮🇪', Ireland: '🇮🇪', Scotland: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  Senegal: '🇸🇳', Serbia: '🇷🇸', Spain: '🇪🇸', Sweden: '🇸🇪', Switzerland: '🇨🇭',
+  Turkey: '🇹🇷', Uruguay: '🇺🇾', USA: '🇺🇸', 'United States': '🇺🇸', Wales: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  Algeria: '🇩🇿', Angola: '🇦🇴', Bosnia: '🇧🇦', 'Bosnia-Herzegovina': '🇧🇦',
+  Bulgaria: '🇧🇬', Czechia: '🇨🇿', 'Czech Republic': '🇨🇿', Finland: '🇫🇮',
+  Hungary: '🇭🇺', Iceland: '🇮🇸', Israel: '🇮🇱', Jamaica: '🇯🇲', Mali: '🇲🇱',
+  Paraguay: '🇵🇾', Peru: '🇵🇪', Romania: '🇷🇴', Russia: '🇷🇺', Slovakia: '🇸🇰',
+  Slovenia: '🇸🇮', 'South Korea': '🇰🇷', Tunisia: '🇹🇳', Ukraine: '🇺🇦', Venezuela: '🇻🇪'
+};
+
+function mapSquadPosition(position) {
+  const p = (position || '').toLowerCase();
+  if (p.includes('goal')) return 'GK';
+  if (p.includes('defen') || p.includes('back')) return 'DEF';
+  if (p.includes('mid')) return 'MID';
+  if (p.includes('offen') || p.includes('forward') || p.includes('attack') || p.includes('wing')) return 'FWD';
+  return 'MID';
+}
+
+function playerAge(dateOfBirth) {
+  if (!dateOfBirth) return '—';
+  const birth = new Date(dateOfBirth);
+  if (Number.isNaN(birth.getTime())) return '—';
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function natFlag(nationality) {
+  return NAT_FLAGS[nationality] || '🌍';
+}
+
+async function fetchTeamSquad(teamId) {
+  if (STATE.squadCache[teamId] !== undefined) return STATE.squadCache[teamId];
+  try {
+    const data = await fetchFD(`teams/${teamId}/squad`);
+    const squad = Array.isArray(data) ? data : (data.squad || []);
+    const players = squad.filter(p => !p.role || p.role === 'PLAYER');
+    STATE.squadCache[teamId] = players.length ? players : null;
+    return STATE.squadCache[teamId];
+  } catch {
+    try {
+      const data = await fetchFD(`teams/${teamId}`);
+      const players = (data.squad || []).filter(p => !p.role || p.role === 'PLAYER');
+      STATE.squadCache[teamId] = players.length ? players : null;
+      return STATE.squadCache[teamId];
+    } catch {
+      STATE.squadCache[teamId] = null;
+      return null;
+    }
+  }
+}
+
+function squadPlayerHTML(player) {
+  const pos = mapSquadPosition(player.position);
+  const posClass = `pos-${pos.toLowerCase()}`;
+  const nat = player.nationality || '—';
+  return `<div class="squad-player ${posClass}">
+    <span class="squad-player-name">${player.name}</span>
+    <span class="squad-player-meta">
+      <span class="squad-pos-badge ${posClass}">${pos}</span>
+      <span title="${nat}">${natFlag(nat)}</span>
+      <span>${playerAge(player.dateOfBirth)}</span>
+    </span>
+  </div>`;
+}
+
+function squadColumnHTML(team, squad) {
+  if (!squad?.length) return '<div class="empty">Plantilla no disponible</div>';
+  const byPos = { GK: [], DEF: [], MID: [], FWD: [] };
+  squad.forEach(p => byPos[mapSquadPosition(p.position)].push(p));
+  SQUAD_GROUPS.forEach(g => byPos[g.key].sort((a, b) => (a.shirtNumber || 99) - (b.shirtNumber || 99)));
+
+  const groups = SQUAD_GROUPS.map(g => {
+    const players = byPos[g.key];
+    if (!players.length) return '';
+    const posClass = `pos-${g.key.toLowerCase()}`;
+    return `<div class="squad-group">
+      <div class="squad-group-label ${posClass}">${g.label}</div>
+      ${players.map(squadPlayerHTML).join('')}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="squad-col-title">${crest(team, true)} ${team.shortName || team.name}</div>
+    ${groups || '<div class="empty">Plantilla no disponible</div>'}`;
+}
+
+function squadSectionHTML(homeTeam, awayTeam, homeSquad, awaySquad) {
+  return `<div class="card" style="margin-bottom:12px">
+    <div class="card-title">👥 Plantillas</div>
+    <div class="squad-grid">
+      <div>${squadColumnHTML(homeTeam, homeSquad)}</div>
+      <div>${squadColumnHTML(awayTeam, awaySquad)}</div>
+    </div>
+  </div>`;
+}
+
+async function loadSquadSection(match) {
+  const el = document.getElementById('squadSection');
+  if (!el) return;
+  try {
+    const [homeSquad, awaySquad] = await Promise.all([
+      fetchTeamSquad(match.homeTeam.id),
+      fetchTeamSquad(match.awayTeam.id)
+    ]);
+    el.innerHTML = squadSectionHTML(match.homeTeam, match.awayTeam, homeSquad, awaySquad);
+  } catch {
+    el.innerHTML = `<div class="card" style="margin-bottom:12px">
+      <div class="card-title">👥 Plantillas</div>
+      <div class="empty">Plantilla no disponible</div>
+    </div>`;
+  }
+}
+
 // ═══════════════════════════════════════════════
 //  VIEWS
 // ═══════════════════════════════════════════════
@@ -851,7 +1010,9 @@ async function renderMatchDetail(match) {
       <div style="margin-top:10px">${statusBadge(match)}</div>
     </div>
     <div class="card" style="margin-bottom:12px">${probHTML(probs, match)}</div>
+    <div id="squadSection"><div class="loading"><div class="spinner"></div>Cargando plantillas...</div></div>
     <button class="btn btn-primary btn-block" onclick="goPredictor(${match.id})">🔮 Análisis completo IA</button>`;
+    loadSquadSection(match);
   } catch (e) {
     el.innerHTML = `<div class="error-box">${e.message}</div>`;
   }
