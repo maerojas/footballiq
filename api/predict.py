@@ -48,7 +48,7 @@ class TeamStats:
     @property
     def form_points(self) -> float:
         mapping = {"W": 3, "D": 1, "L": 0}
-        recent = [f.strip() for f in self.form.split(",") if f.strip()][-5:]
+        recent = [f.strip() for f in (self.form or "").split(",") if f.strip()][-5:]
         if not recent:
             return self.ppg * 5 / 3
         return sum(mapping.get(r, 0) for r in recent)
@@ -68,7 +68,7 @@ def standing_row_to_stats(row: dict[str, Any]) -> TeamStats:
         goals_for=row.get("goalsFor", 0),
         goals_against=row.get("goalsAgainst", 0),
         points=row.get("points", 0),
-        form=row.get("form", ""),
+        form=row.get("form") or "",
     )
 
 
@@ -138,8 +138,8 @@ def _poisson_outcomes(xg_home: float, xg_away: float) -> dict[str, float | int]:
 
 
 def _build_analysis(home: TeamStats, away: TeamStats, probs: dict[str, Any]) -> dict[str, Any]:
-    home_form = _form_to_recent(home.form)
-    away_form = _form_to_recent(away.form)
+    home_form = _form_to_recent(home.form or "")
+    away_form = _form_to_recent(away.form or "")
     home_wins = home_form.count("W")
     away_wins = away_form.count("W")
     xg_total = probs["xg_home"] + probs["xg_away"]
