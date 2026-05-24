@@ -743,44 +743,20 @@ document.querySelectorAll('.tab').forEach(tab => {
 // ═══════════════════════════════════════════════
 //  PREDICTIONS
 // ═══════════════════════════════════════════════
-function predict(match) {
+async function predict(match) {
   const key = `${match.id}-${STATE.league}`;
   if (STATE.predictionCache[key]) return STATE.predictionCache[key];
 
-  const home = STATE.standings.find(s => s.team.id === match.homeTeam.id);
-  const away = STATE.standings.find(s => s.team.id === match.awayTeam.id);
-  let hStr = 0.5, aStr = 0.5;
-  if (home && away) {
-    const n = STATE.standings.length;
-    hStr = (1 - (home.position - 1) / n) * 1.1;
-    aStr = 1 - (away.position - 1) / n;
-  }
-  const tot = hStr + aStr + 0.3;
-  const win = Math.max(5, Math.round(hStr / tot * 100));
-  const lose = Math.max(5, Math.round(aStr / tot * 100));
-  const draw = 100 - win - lose;
-  const xg = ((hStr * 2.8 + aStr * 2.2) / 2).toFixed(1);
-  const btts = Math.min(72, Math.round(45 + (parseFloat(xg) - 2) * 12));
-  const over25 = Math.min(75, Math.round(38 + (parseFloat(xg) - 2) * 15));
-
-  const analysis = {
-    context: home && away
-      ? `${match.homeTeam.name} (${home.position}°, ${home.points} pts) vs ${match.awayTeam.name} (${away.position}°, ${away.points} pts).`
-      : `${match.homeTeam.name} vs ${match.awayTeam.name}.`,
-    strengths: home && away
-      ? `${match.homeTeam.name} anota ${(home.goalsFor/home.playedGames).toFixed(1)} GF/partido. ${match.awayTeam.name} concede ${(away.goalsAgainst/away.playedGames).toFixed(1)} GC/partido.`
-      : 'Datos limitados de tabla.',
-    prediction: `Victoria local ${win}% · Empate ${draw}% · Visitante ${lose}%. xG: ${xg}. BTTS: ${btts}%. Over 2.5: ${over25}%.`,
-    factors: home && away ? [
-      `Diferencia en tabla: ${Math.abs(home.position - away.position)} puestos`,
-      `Puntos: ${home.points} vs ${away.points}`,
-      `Forma: ${(home.form||'N/D').slice(-11)} vs ${(away.form||'N/D').slice(-11)}`
-    ] : ['Sin datos completos de tabla']
-  };
-
-  const result = { win, draw, lose, xg, btts, over25, analysis, confidence: win > 50 ? 'Alta' : 'Media' };
-  STATE.predictionCache[key] = result;
-  return result;
+  const url = `/api/predict?home_id=${match.homeTeam.id}&away_id=${match.awayTeam.id}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(STATE.standings)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  STATE.predictionCache[key] = data;
+  return data;
 }
 
 function probHTML(probs, match) {
@@ -857,11 +833,14 @@ function selectMatch(id) {
   renderMatchDetail(m);
 }
 
-function renderMatchDetail(match) {
-  const probs = predict(match);
-  const hs = match.score?.fullTime?.home, as = match.score?.fullTime?.away;
-  const hasScore = hs != null;
-  document.getElementById('matchDetail').innerHTML = `
+async function renderMatchDetail(match) {
+  const el = document.getElementById('matchDetail');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Calculando predicción...</div>';
+  try {
+    const probs = await predict(match);
+    const hs = match.score?.fullTime?.home, as = match.score?.fullTime?.away;
+    const hasScore = hs != null;
+    el.innerHTML = `
     <div class="card" style="margin-bottom:12px;text-align:center">
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px">${new Date(match.utcDate).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</div>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px">
@@ -873,6 +852,9 @@ function renderMatchDetail(match) {
     </div>
     <div class="card" style="margin-bottom:12px">${probHTML(probs, match)}</div>
     <button class="btn btn-primary btn-block" onclick="goPredictor(${match.id})">🔮 Análisis completo IA</button>`;
+  } catch (e) {
+    el.innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
 }
 
 function renderStandings() {
@@ -918,11 +900,14 @@ function goPredictor(id) {
   navigate('predictor');
 }
 
-function renderPredictorDetail(match) {
-  const probs = predict(match);
-  const home = STATE.standings.find(s => s.team.id === match.homeTeam.id);
-  const away = STATE.standings.find(s => s.team.id === match.awayTeam.id);
-  document.getElementById('predictorDetail').innerHTML = `
+async function renderPredictorDetail(match) {
+  const el = document.getElementById('predictorDetail');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Calculando predicción...</div>';
+  try {
+    const probs = await predict(match);
+    const home = STATE.standings.find(s => s.team.id === match.homeTeam.id);
+    const away = STATE.standings.find(s => s.team.id === match.awayTeam.id);
+    el.innerHTML = `
     <div class="card" style="margin-bottom:14px;text-align:center">
       <div style="font-size:13px;color:var(--text3);margin-bottom:10px">${LEAGUES[STATE.league].flag} ${LEAGUES[STATE.league].name}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
@@ -933,6 +918,9 @@ function renderPredictorDetail(match) {
     </div>
     <div class="card" style="margin-bottom:14px">${probHTML(probs, match)}</div>
     ${analysisHTML(probs)}`;
+  } catch (e) {
+    el.innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
 }
 
 function renderProfileFavorites() {
